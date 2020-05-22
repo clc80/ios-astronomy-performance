@@ -139,22 +139,29 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
         if let cachedImageData = cache.value(for: photoReference.id),
             let image = UIImage(data: cachedImageData) {
             
-            // We are currently in the main queue
-            // Let's change this but we can't use it as is because it draws and this needs to happen on the main queue not a background queue
-            DispatchQueue.global().sync {
-                let filteredImage = image.filtered() // Global queue
-                
+            image.filtered(compltion: {filteredImage in
+                // What queue are we in?
+                // This closure is getting called from the filtered function that is in a global queue
                 DispatchQueue.main.async {
+                    // always draw on the main queue
                     cell.imageView.image = filteredImage
                 }
-                
-                // sync -> linke 150 will execute (after) the above block
-                // async -> linke 150 will execute sometime before/during/after the above block
-            }
+            })
             
             return
         }
-        
+////        / We are currently in the main queue
+//// Let's change this but we can't use it as is because it draws and this needs to happen on the main queue not a background queue
+//DispatchQueue.global().sync {
+//    let filteredImage = image.filtered() // Global queue
+//
+//    DispatchQueue.main.async {
+//        cell.imageView.image = filteredImage
+//    }
+//
+//    // sync -> linke 150 will execute (after) the above block
+//    // async -> linke 150 will execute sometime before/during/after the above block
+//}
         // Start an operation to fetch image data
         let fetchOp = FetchPhotoOperation(photoReference: photoReference)
         let cacheOp = BlockOperation {
@@ -170,10 +177,8 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
             if let data = fetchOp.imageData ,
                 let imageFromData = UIImage(data: data) {
                 
-                DispatchQueue.global().sync {
-                    let filteredImage = imageFromData.filtered() // Global queue
-                    
-                    // We want to make sure we are putting the data in the right cell so we need to run the check in there. 
+                imageFromData.filtered { filteredImage in
+                    // We want to make sure we are putting the data in the right cell so we need to run the check in there.
                     DispatchQueue.main.async {
                         // We're going out to the network (fetch Operation
                         // Returned from the network
@@ -184,6 +189,7 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
                         }
                         cell.imageView.image = filteredImage
                     }
+                    
                 }
                 
             }
