@@ -136,18 +136,8 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
         let photoReference = photoReferences[indexPath.item]
         
         // Check for image in cache
-        if let cachedImageData = cache.value(for: photoReference.id),
-            let image = UIImage(data: cachedImageData) {
-            
-            image.filtered(compltion: {filteredImage in
-                // What queue are we in?
-                // This closure is getting called from the filtered function that is in a global queue
-                DispatchQueue.main.async {
-                    // always draw on the main queue
-                    cell.imageView.image = filteredImage
-                }
-            })
-            
+        if let cachedImage = cache.value(for: photoReference.id) {
+            cell.imageView.image = cachedImage
             return
         }
 ////        / We are currently in the main queue
@@ -165,10 +155,12 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
         // Start an operation to fetch image data
         let fetchOp = FetchPhotoOperation(photoReference: photoReference)
         let cacheOp = BlockOperation {
-            if let data = fetchOp.imageData {
-                self.cache.cache(value: data, for: photoReference.id)
+            if let data = fetchOp.imageData,
+                let fetchedImage = UIImage(data: data) {
+                fetchedImage.filtered { self.cache.cache(value: $0, for: photoReference.id)}
             }
         }
+        
         let completionOp = BlockOperation {
             defer { self.operations.removeValue(forKey: photoReference.id) }
             
@@ -216,7 +208,7 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
     // Properties
     
     private let client = MarsRoverClient()
-    private let cache = Cache<Int, Data>()
+    private let cache = Cache<Int, UIImage>()
     private let photoFetchQueue = OperationQueue()
     private var operations = [Int : Operation]()
     
