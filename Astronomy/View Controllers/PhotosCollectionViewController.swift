@@ -131,12 +131,27 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
     }
     
     private func loadImage(forCell cell: ImageCollectionViewCell, forItemAt indexPath: IndexPath) {
+        
+        // We are in the main queue doing these calls
         let photoReference = photoReferences[indexPath.item]
         
         // Check for image in cache
         if let cachedImageData = cache.value(for: photoReference.id),
             let image = UIImage(data: cachedImageData) {
-            cell.imageView.image = image.filtered()
+            
+            // We are currently in the main queue
+            // Let's change this but we can't use it as is because it draws and this needs to happen on the main queue not a background queue
+            DispatchQueue.global().sync {
+                let filteredImage = image.filtered() // Global queue
+                
+                DispatchQueue.main.async {
+                    cell.imageView.image = filteredImage
+                }
+                
+                // sync -> linke 150 will execute (after) the above block
+                // async -> linke 150 will execute sometime before/during/after the above block
+            }
+            
             return
         }
         
@@ -150,23 +165,45 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
         let completionOp = BlockOperation {
             defer { self.operations.removeValue(forKey: photoReference.id) }
             
-            if let currentIndexPath = self.collectionView?.indexPath(for: cell),
-                currentIndexPath != indexPath {
-                return // Cell has been reused
-            }
             
-            if let data = fetchOp.imageData {
-                cell.imageView.image = UIImage(data: data)?.filtered()
+            
+            if let data = fetchOp.imageData ,
+                let imageFromData = UIImage(data: data) {
+                
+                DispatchQueue.global().sync {
+                    let filteredImage = imageFromData.filtered() // Global queue
+                    
+                    // We want to make sure we are putting the data in the right cell so we need to run the check in there. 
+                    DispatchQueue.main.async {
+                        // We're going out to the network (fetch Operation
+                        // Returned from the network
+                        // We check if the indexPath for the cell that we have in memory(cell) is still the same index path as before.
+                        if let currentIndexPath = self.collectionView?.indexPath(for: cell),
+                            currentIndexPath != indexPath {
+                            return // Cell has been reused
+                        }
+                        cell.imageView.image = filteredImage
+                    }
+                }
+                
             }
         }
         
+        // After 'fetchOP' finishes, we can begin with cacheOperation
         cacheOp.addDependency(fetchOp)
+        
+        // After 'fetchOP' finishes, we can begin with  completion Operation
         completionOp.addDependency(fetchOp)
         
+        // Addint the operations to the background queue
         photoFetchQueue.addOperation(fetchOp)
         photoFetchQueue.addOperation(cacheOp)
+        
+        // Adding 'completion Operations in the mainQueue
         OperationQueue.main.addOperation(completionOp)
         
+        
+        // Addin the fetch Operation to an array so that we can cancel it in the future
         operations[photoReference.id] = fetchOp
     }
     
