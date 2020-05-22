@@ -155,10 +155,14 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
         // Start an operation to fetch image data
         let fetchOp = FetchPhotoOperation(photoReference: photoReference)
         let cacheOp = BlockOperation {
-            if let data = fetchOp.imageData,
-                let fetchedImage = UIImage(data: data) {
-                fetchedImage.filtered { self.cache.cache(value: $0, for: photoReference.id)}
+            guard let data = fetchOp.imageData,
+                let fetchedImage = UIImage(data: data) else {
+                // Report this maybe?
+                    return
             }
+            // $0 is the first parameted in the 'filtered' completion block.
+            // $0 is a uIIMage
+            fetchedImage.filtered { self.cache.cache(value: $0, for: photoReference.id)}
         }
         
         let completionOp = BlockOperation {
@@ -166,8 +170,10 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
             
             
             
-            if let data = fetchOp.imageData ,
-                let imageFromData = UIImage(data: data) {
+            guard let data = fetchOp.imageData ,
+                let imageFromData = UIImage(data: data) else {
+                    return
+            }
                 
                 imageFromData.filtered { filteredImage in
                     // We want to make sure we are putting the data in the right cell so we need to run the check in there.
@@ -175,14 +181,12 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
                         // We're going out to the network (fetch Operation
                         // Returned from the network
                         // We check if the indexPath for the cell that we have in memory(cell) is still the same index path as before.
-                        if let currentIndexPath = self.collectionView?.indexPath(for: cell),
-                            currentIndexPath != indexPath {
+                        guard let currentIndexPath = self.collectionView?.indexPath(for: cell),
+                            currentIndexPath == indexPath else {
                             return // Cell has been reused
                         }
                         cell.imageView.image = filteredImage
                     }
-                    
-                }
                 
             }
         }
