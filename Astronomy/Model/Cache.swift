@@ -13,6 +13,10 @@ class Cache<Key: Hashable, Value> {
     func cache(value: Value, for key: Key) {
         queue.async {
             self.cache[key] = value
+            
+            if self.cache.count > 10 {
+                self.cache.removeAll()
+            }
         }
     }
     

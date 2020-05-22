@@ -24,6 +24,8 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
         
         configureTitleView()
         updateViews()
+        
+        photoFetchQueue.maxConcurrentOperationCount = 4
     }
     
     @IBAction func goToPreviousSol(_ sender: Any?) {
@@ -140,24 +142,24 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
             cell.imageView.image = cachedImage
             return
         }
-////        / We are currently in the main queue
-//// Let's change this but we can't use it as is because it draws and this needs to happen on the main queue not a background queue
-//DispatchQueue.global().sync {
-//    let filteredImage = image.filtered() // Global queue
-//
-//    DispatchQueue.main.async {
-//        cell.imageView.image = filteredImage
-//    }
-//
-//    // sync -> linke 150 will execute (after) the above block
-//    // async -> linke 150 will execute sometime before/during/after the above block
-//}
+        ////        / We are currently in the main queue
+        //// Let's change this but we can't use it as is because it draws and this needs to happen on the main queue not a background queue
+        //DispatchQueue.global().sync {
+        //    let filteredImage = image.filtered() // Global queue
+        //
+        //    DispatchQueue.main.async {
+        //        cell.imageView.image = filteredImage
+        //    }
+        //
+        //    // sync -> linke 150 will execute (after) the above block
+        //    // async -> linke 150 will execute sometime before/during/after the above block
+        //}
         // Start an operation to fetch image data
         let fetchOp = FetchPhotoOperation(photoReference: photoReference)
         let cacheOp = BlockOperation {
             guard let data = fetchOp.imageData,
                 let fetchedImage = UIImage(data: data) else {
-                // Report this maybe?
+                    // Report this maybe?
                     return
             }
             // $0 is the first parameted in the 'filtered' completion block.
@@ -174,19 +176,19 @@ class PhotosCollectionViewController: UIViewController, UICollectionViewDataSour
                 let imageFromData = UIImage(data: data) else {
                     return
             }
-                
-                imageFromData.filtered { filteredImage in
-                    // We want to make sure we are putting the data in the right cell so we need to run the check in there.
-                    DispatchQueue.main.async {
-                        // We're going out to the network (fetch Operation
-                        // Returned from the network
-                        // We check if the indexPath for the cell that we have in memory(cell) is still the same index path as before.
-                        guard let currentIndexPath = self.collectionView?.indexPath(for: cell),
-                            currentIndexPath == indexPath else {
+            
+            imageFromData.filtered { filteredImage in
+                // We want to make sure we are putting the data in the right cell so we need to run the check in there.
+                DispatchQueue.main.async {
+                    // We're going out to the network (fetch Operation
+                    // Returned from the network
+                    // We check if the indexPath for the cell that we have in memory(cell) is still the same index path as before.
+                    guard let currentIndexPath = self.collectionView?.indexPath(for: cell),
+                        currentIndexPath == indexPath else {
                             return // Cell has been reused
-                        }
-                        cell.imageView.image = filteredImage
                     }
+                    cell.imageView.image = filteredImage
+                }
                 
             }
         }
